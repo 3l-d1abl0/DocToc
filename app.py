@@ -27,6 +27,8 @@ if __name__ == "__main__":
             os.environ['OPENAI_API_KEY'] = api_key
             st.write(api_key)
 
+        
+
 
     #Upload a PDF file
     pdf = st.file_uploader('Upload you pdf file', type='pdf')
@@ -35,26 +37,38 @@ if __name__ == "__main__":
 
         if st.button('Start Talking !'):
             st.write('CLICKED')
-            st.write(os.environ['OPENAI_API_KEY'])
 
-        st.write(pdf.name)
-        pdf_reader = PdfReader(pdf)
-        text=""
-        for page in pdf_reader.pages:
-            text+=page.extract_text()
-        #st.write(text)
+            if 'OPENAI_API_KEY' not in os.environ:
+                st.write('Please Provide OpenAPI Key !')
+                st.stop()
+            else:            
+                api_key = os.environ['OPENAI_API_KEY']
+                if api_key is None or api_key.strip() == "":
+                    st.write('Please Provide OpenAPI Key')
+                    st.stop()
+                else:
 
-        #Split the text into chunks
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len
+                    #API Key recieved - process further
+                    st.write(api_key)   
 
-        )
-        chunks = text_splitter.split_text(text=text)
-        st.write(len(chunks))
-        st.write(chunks)
+                    st.write(pdf.name)
+                    pdf_reader = PdfReader(pdf)
+                    text=""
+                    for page in pdf_reader.pages:
+                        text+=page.extract_text()
+                    #st.write(text)
+
+                    #Split the text into chunks
+                    text_splitter = RecursiveCharacterTextSplitter(
+                        chunk_size=1000,
+                        chunk_overlap=200,
+                        length_function=len
+
+                    )
+                    chunks = text_splitter.split_text(text=text)
+                    #st.write(len(chunks))
+                    #st.write(chunks)
 
 
-    st.subheader('Sourcasdasddddddddddddddddddddddddd')
-    st.subheader('Source code')
+                    st.subheader('Sourcasdasddddddddddddddddddddddddd')
+                    st.subheader('Source code')
