@@ -41,9 +41,13 @@ if __name__ == "__main__":
 
     if pdf:
 
+        #if "vs" in st.session_state:
+            #del st.session_state.vs
+
         if st.button('Start Talking !'):
-            st.write('CLICKED')
-            st.subheader(chunks_size)
+            
+            #st.write('CLICKED')
+            #st.subheader(chunks_size)
 
             if 'OPENAI_API_KEY' not in os.environ:
                 st.write('Please Provide OpenAPI Key !')
@@ -56,8 +60,6 @@ if __name__ == "__main__":
                 else:
 
                     #API Key recieved - process further
-                    st.write(api_key)   
-                    st.write(pdf.name)
 
                     chunks_size[0] = int(chunks_size[0])
                     chunks_size[1] = int(chunks_size[1])
@@ -82,30 +84,29 @@ if __name__ == "__main__":
                     
 
                     store_name = pdf.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
-                    st.subheader(store_name)
+                    #st.subheader(store_name)
 
                     #If existing, load embedding from disk, otherwise create
-                    if os.path.exists(f"embeddings/{store_name}.pkl"):
+                    if os.path.exists(f"embeddings/{store_name}"):
                         #with open(f"embeddings/{store_name}.pkl", "rb") as f:
                             #VectorStore = pickle.load(f)
 
-                        x = FAISS.load_local(f"embeddings/{store_name}.pkl", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+                        x = FAISS.load_local(f"embeddings/{store_name}", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
                         VectorStore = x.as_retriever()
-                        st.write('Embeddings Loaded from the Disk')
 
                         # saving the vector store in the streamlit session state (to be persistent between reruns)
                         st.session_state.vs = VectorStore
-                        st.success('Uploaded, chunked and embedded successfully.')
+                        st.success('Embeddings Loaded from the Disk')
                     else:
                         embeddings = OpenAIEmbeddings()
                         VectorStore = FAISS.from_texts(chunks, embeddings)
                         #with open(f"embeddings/{store_name}.pkl", "wb") as f:
                         #    pickle.dump(VectorStore, f)
                         
-                        VectorStore.save_local(f"embeddings/{store_name}.pkl")
-                        st.subheader('Embeddings Created')
-                                                # saving the vector store in the streamlit session state (to be persistent between reruns)
-                        st.session_state.vs = VectorStore
+                        VectorStore.save_local(f"embeddings/{store_name}")
+                        
+                        # saving the vector store in the streamlit session state (to be persistent between reruns)
+                        st.session_state.vs = VectorStore.as_retriever()
                         st.success('Uploaded, chunked and embedded successfully.')
 
     if pdf and 'vs' in st.session_state:
@@ -124,11 +125,10 @@ if __name__ == "__main__":
             chain = load_qa_chain(llm=llm, chain_type="stuff")
             with get_openai_callback() as cb:
                 response = chain.run(input_documents=docs, question=query)
+                #Print the cost charged
                 print(cb)
-                st.subheader(cb)
+                #st.subheader(cb)
             
             st.write(response)
 
-        else:
-            st.subheader('No Ques')
 
