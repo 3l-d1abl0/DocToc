@@ -3,12 +3,14 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from dotenv import load_dotenv
 import pickle
-from langchain_community.llms import OpenAI
+#from langchain_community.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain.chains.question_answering import load_qa_chain
+#from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains import ConversationalRetrievalChain
 
 load_dotenv()
 
@@ -118,10 +120,16 @@ if __name__ == "__main__":
             #docs = VectorStore.similarity_search(query=query, k=3)
             #docs = VectorStore.get_relevant_documents(query)
             docs = VectorStore.invoke(query)
+
+            #retriever
+            st.write(VectorStore)
             
-            llm = OpenAI(model_name="gpt-3.5-turbo-instruct")
+            #llm = OpenAI(model_name="gpt-3.5-turbo-instruct")
             # llm = OpenAI(temperature=0.9, max_tokens=500, api_key=OPENAI_API_KEY)
+
+            llm = ChatOpenAI(model_name="gpt-3.5-turbo")
             
+            '''
             chain = load_qa_chain(llm=llm, chain_type="stuff")
             with get_openai_callback() as cb:
                 response = chain.run(input_documents=docs, question=query)
@@ -130,5 +138,18 @@ if __name__ == "__main__":
                 #st.subheader(cb)
             
             st.write(response)
+            '''
+
+            if 'history' not in st.session_state:
+                st.session_state['history'] = []
+
+            crc = ConversationalRetrievalChain.from_llm(llm=llm, retriever=VectorStore, chain_type="stuff")
+
+            response = crc.run({'question': query, 'chat_history': st.session_state['history']})
+
+            st.session_state['history'].append((query, response))
+
+            st.write(response)
+
 
 
