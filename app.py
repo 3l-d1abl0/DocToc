@@ -128,17 +128,6 @@ if __name__ == "__main__":
             # llm = OpenAI(temperature=0.9, max_tokens=500, api_key=OPENAI_API_KEY)
 
             llm = ChatOpenAI(model_name="gpt-3.5-turbo")
-            
-            '''
-            chain = load_qa_chain(llm=llm, chain_type="stuff")
-            with get_openai_callback() as cb:
-                response = chain.run(input_documents=docs, question=query)
-                #Print the cost charged
-                print(cb)
-                #st.subheader(cb)
-            
-            st.write(response)
-            '''
 
             if 'history' not in st.session_state:
                 st.session_state['history'] = []
@@ -147,9 +136,14 @@ if __name__ == "__main__":
 
             response = crc.run({'question': query, 'chat_history': st.session_state['history']})
 
-            st.session_state['history'].append((query, response))
 
             st.write(response)
+            for prompts in reversed(st.session_state['history']):
+                st.write("Q: "+prompts[0])
+                st.write("A: "+prompts[1])
+                st.write(" ")
+
+            st.session_state['history'].append((query, response))
 
 
 
