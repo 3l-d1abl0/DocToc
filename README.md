@@ -1,6 +1,6 @@
-# DocTalk - Chat with your PDF Documents
+# DocToc - Chat with your PDF Documents
 
-DocTalk is an interactive document chat application that allows users to have conversations with their PDF documents using OpenAI's language models and Langchain.
+DocToc is an interactive document chat application that allows users to have conversations with their PDF documents using OpenAI's language models and Langchain.
 
 ## Features
 
