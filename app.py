@@ -49,7 +49,7 @@ def sidebar_setup():
         api_key = st.text_input('Your OpenAI API Key:', type='password')
         if api_key:
             os.environ['OPENAI_API_KEY'] = api_key
-            st.write(api_key)
+            #st.write(api_key)
 
         chunks_size[0] = st.number_input('Chunk size:', min_value=500, max_value=3000, value=1000)
         chunks_size[1] = st.number_input('Chunk Overlap:', min_value=100, max_value=500, value=200)
@@ -108,25 +108,61 @@ def handle_pdf(pdf_bytes):
         #st.write('Please Provide OpenAPI Key !')
         st.warning('Please Provide OpenAPI Key !', icon="⚠️")
         st.stop()
-    else:            
-        api_key = os.environ['OPENAI_API_KEY']
+    else:
 
         #Create Text Chunks 
         chunks = create_text_chunks_from_pdf(pdf_bytes)
 
-        st.write(len(chunks))
-        st.write(chunks)
+        #st.write(len(chunks))
+        #st.write(chunks)
         
         store_name = pdf_bytes.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
         vector_store = create_vector_store(store_name, chunks)
         #.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": .5, "k": top_k})
-        
+        #docs = vector_store.similarity_search(query=query, k=3)
+        #docs = vector_store.get_relevant_documents(query)
+        #docs = vector_store.invoke(query)
+
         # saving the vector store in the streamlit session state (to be persistent between reruns)
-        st.session_state.vs = vector_store.as_retriever()
+        st.session_state.vector_store = vector_store.as_retriever()
         st.success('Vector Store Loaded !')
 
 
+def ask_llm(query):
+    
+    vector_store = st.session_state.vector_store
+    # llm = OpenAI(model_name="gpt-3.5-turbo-instruct",temperature=0.9, max_tokens=500, api_key=OPENAI_API_KEY)
+    #initialize_conversation_chain
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=vector_store, memory=memory)
+    response = conversation_chain({'question': query})
+    return response['answer']
 
+def render_history():
+    
+    if st.session_state.history != []:
+        with chat_container:
+            st.write("Chat History:")
+
+            for message in st.session_state['history']:
+                role = message["role"]
+                avatar_path = (
+                    app_config["avatar"]["assistant"]
+                    if role == "assistant"
+                    else app_config["avatar"]["user"]
+                )
+
+                with st.chat_message(role, avatar=str(avatar_path)):
+                    st.markdown(message["content"])
+
+def fetch_response():
+    query = st.session_state.user_input
+    #Add the Prompt by user to Message History
+    st.session_state.history.append({"role": "user", "content": query})
+    answer = ask_llm(query)
+    st.session_state['history'].append({"role": "assistant", "content": answer})
+    st.session_state.user_input = ''
 
 if __name__ == "__main__":
 
@@ -143,63 +179,24 @@ if __name__ == "__main__":
     if pdf_document:
             
         #When start talking button is clicked
-        if st.button('Start Talking !'):
-            
+        if st.button('Start Talking !', use_container_width=True, type="primary"):
+
             with st.spinner("Processing pdf..."):
                 handle_pdf(pdf_document)
 
-        st.stop()
+    #st.stop()
+    #Setup a Container
+    chat_container = st.container()
 
-
-    if pdf_document and 'vs' in st.session_state:
+    #PDF is added and vector store is ready
+    if pdf_document and 'vector_store' in st.session_state:
 
         if 'history' not in st.session_state:
             st.session_state['history'] = []
-        
-        for message in st.session_state['history']:
-            role = message["role"]
-            avatar_path = (
-                app_config["avatar"]["assistant"]
-                if role == "assistant"
-                else app_config["avatar"]["user"]
-            )
 
-            with st.chat_message(role, avatar=str(avatar_path)):
-                st.markdown(message["content"])
-
-        if query:= st.text_input("Ask Question from your PDF File"):
-
-
-            #Add the Prompt by user to Message History
-            st.session_state.history.append({"role": "user", "content": query})
-
-            with st.chat_message("user",avatar=str(app_config["avatar"]["user"]),):
-                st.markdown(query)
-            
-            VectorStore = st.session_state.vs
-            #docs = VectorStore.similarity_search(query=query, k=3)
-            #docs = VectorStore.get_relevant_documents(query)
-            docs = VectorStore.invoke(query)
-
-            #retriever
-            st.write(VectorStore)
-            
-            #llm = OpenAI(model_name="gpt-3.5-turbo-instruct")
-            # llm = OpenAI(temperature=0.9, max_tokens=500, api_key=OPENAI_API_KEY)
-            #initialize_conversation_chain
-            llm = ChatOpenAI(model_name="gpt-3.5-turbo")
-
-            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-            conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=VectorStore, memory=memory)
-
-            response = conversation_chain({'question': query})
-
-
-            st.write(response['answer'])
-
-            #st.session_state['history'].append((query, response))
-            #Add the Prompt by user to Message History
-            st.session_state['history'].append({"role": "assistant", "content": response['answer']})
-
+        user_input = st.text_input("Ask Question from your PDF File", key="user_input", on_change=fetch_response)
+        #if query:= st.text_input("Ask Question from your PDF File"):
+        #If there are something in history, render it
+        render_history()
 
 
