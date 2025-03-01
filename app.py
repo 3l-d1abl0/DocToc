@@ -3,28 +3,47 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from dotenv import load_dotenv
 import pickle
-from langchain_community.llms import OpenAI
+#from langchain_community.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain.chains.question_answering import load_qa_chain
+from langchain.memory import ConversationBufferMemory
+#from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains import ConversationalRetrievalChain
 
 load_dotenv()
 
 chunks_size = [0, 0]
 
+app_config ={
+    "avatar": { "user": os.path.join(os.path.dirname(os.path.realpath(__file__)), "images", "user-avatar.png"),
+                "assistant": os.path.join(os.path.dirname(os.path.realpath(__file__)), "images", "assistant-avatar.png"),
+            }
+}
 
-if __name__ == "__main__":
 
-    
-    st.header('DocTalk : Chat with your Docs !')
+def page_setup():
+    st.set_page_config(page_title="DocToc", page_icon="🐧")
+    st.header('DocToc : Chat with your Docs !')
 
     st.sidebar.title('LLM, Langchain, chat')
     st.sidebar.markdown('''
         - [streamlit](https://streamlit.io)
     ''')
+    st.html(
+    """
+<style>
+    .st-emotion-cache-p4micv {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+</style>
+"""
+)
 
+def sidebar_setup():
     with st.sidebar:
         # text_input for the OpenAI API key
         api_key = st.text_input('Your OpenAI API Key:', type='password')
@@ -35,15 +54,24 @@ if __name__ == "__main__":
         chunks_size[0] = st.number_input('Chunk size:', min_value=500, max_value=3000, value=1000)
         chunks_size[1] = st.number_input('Chunk Overlap:', min_value=100, max_value=500, value=200)
 
+if __name__ == "__main__":
+
+    page_setup()
+
+    sidebar_setup()
+
+
 
     #Upload a PDF file
     pdf = st.file_uploader('Upload you pdf file', type='pdf')
 
+    #If a pdf is added
     if pdf:
 
         #if "vs" in st.session_state:
             #del st.session_state.vs
-
+            
+        #When start talking button is clicked
         if st.button('Start Talking !'):
             
             #st.write('CLICKED')
@@ -110,25 +138,54 @@ if __name__ == "__main__":
                         st.success('Uploaded, chunked and embedded successfully.')
 
     if pdf and 'vs' in st.session_state:
-        query = st.text_input("Ask Question from your PDF File")
 
-        if query:
+        if 'history' not in st.session_state:
+            st.session_state['history'] = []
+        
+        for message in st.session_state['history']:
+            role = message["role"]
+            avatar_path = (
+                app_config["avatar"]["assistant"]
+                if role == "assistant"
+                else app_config["avatar"]["user"]
+            )
+
+            with st.chat_message(role, avatar=str(avatar_path)):
+                st.markdown(message["content"])
+
+        if query:= st.text_input("Ask Question from your PDF File"):
+
+
+            #Add the Prompt by user to Message History
+            st.session_state.history.append({"role": "user", "content": query})
+
+            with st.chat_message("user",avatar=str(app_config["avatar"]["user"]),):
+                st.markdown(query)
             
             VectorStore = st.session_state.vs
             #docs = VectorStore.similarity_search(query=query, k=3)
             #docs = VectorStore.get_relevant_documents(query)
             docs = VectorStore.invoke(query)
+
+            #retriever
+            st.write(VectorStore)
             
-            llm = OpenAI(model_name="gpt-3.5-turbo-instruct")
+            #llm = OpenAI(model_name="gpt-3.5-turbo-instruct")
             # llm = OpenAI(temperature=0.9, max_tokens=500, api_key=OPENAI_API_KEY)
-            
-            chain = load_qa_chain(llm=llm, chain_type="stuff")
-            with get_openai_callback() as cb:
-                response = chain.run(input_documents=docs, question=query)
-                #Print the cost charged
-                print(cb)
-                #st.subheader(cb)
-            
-            st.write(response)
+            #initialize_conversation_chain
+            llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+
+            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+            conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=VectorStore, memory=memory)
+
+            response = conversation_chain({'question': query})
+
+
+            st.write(response['answer'])
+
+            #st.session_state['history'].append((query, response))
+            #Add the Prompt by user to Message History
+            st.session_state['history'].append({"role": "assistant", "content": response['answer']})
+
 
 
