@@ -54,6 +54,86 @@ def sidebar_setup():
         chunks_size[0] = st.number_input('Chunk size:', min_value=500, max_value=3000, value=1000)
         chunks_size[1] = st.number_input('Chunk Overlap:', min_value=100, max_value=500, value=200)
 
+def check_keys()->bool:
+    if 'OPENAI_API_KEY' not in os.environ:
+        return False
+
+    #api_key = os.environ['OPENAI_API_KEY'].strip()
+    if os.environ['OPENAI_API_KEY'] is None or os.environ['OPENAI_API_KEY'].strip() == "":
+        return False
+
+    return True
+
+def create_text_chunks_from_pdf(pdf_bytes):
+        
+        chunks_size[0] = int(chunks_size[0])
+        chunks_size[1] = int(chunks_size[1])
+
+        pdf_reader = PdfReader(pdf_bytes)
+        text=""
+        for page in pdf_reader.pages:
+            text+=page.extract_text()
+        
+        #Split the text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunks_size[0],
+            chunk_overlap=chunks_size[1],
+            length_function=len
+
+        )
+
+        return text_splitter.split_text(text=text)
+
+        
+
+def handle_pdf(pdf_bytes):
+
+    #st.write('CLICKED')
+    #st.subheader(chunks_size)
+
+    if check_keys() == False:
+        #st.write('Please Provide OpenAPI Key !')
+        st.warning('Please Provide OpenAPI Key !', icon="⚠️")
+        st.stop()
+    else:            
+        api_key = os.environ['OPENAI_API_KEY']
+
+        #Create Text Chunks 
+        chunks = create_text_chunks_from_pdf(pdf_bytes)
+
+        st.write(len(chunks))
+        st.write(chunks)
+        
+        
+
+        store_name = pdf.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
+        #st.subheader(store_name)
+
+        #If existing, load embedding from disk, otherwise create
+        if os.path.exists(f"embeddings/{store_name}"):
+            #with open(f"embeddings/{store_name}.pkl", "rb") as f:
+                #VectorStore = pickle.load(f)
+
+            x = FAISS.load_local(f"embeddings/{store_name}", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+            VectorStore = x.as_retriever()
+
+            # saving the vector store in the streamlit session state (to be persistent between reruns)
+            st.session_state.vs = VectorStore
+            st.success('Embeddings Loaded from the Disk')
+        else:
+            embeddings = OpenAIEmbeddings()
+            VectorStore = FAISS.from_texts(chunks, embeddings)
+            #with open(f"embeddings/{store_name}.pkl", "wb") as f:
+            #    pickle.dump(VectorStore, f)
+            
+            VectorStore.save_local(f"embeddings/{store_name}")
+            
+            # saving the vector store in the streamlit session state (to be persistent between reruns)
+            st.session_state.vs = VectorStore.as_retriever()
+            st.success('Uploaded, chunked and embedded successfully.')
+
+
+
 if __name__ == "__main__":
 
     page_setup()
@@ -63,81 +143,21 @@ if __name__ == "__main__":
 
 
     #Upload a PDF file
-    pdf = st.file_uploader('Upload you pdf file', type='pdf')
+    pdf_document = st.file_uploader('Upload you pdf file', type='pdf')
 
     #If a pdf is added
-    if pdf:
-
-        #if "vs" in st.session_state:
-            #del st.session_state.vs
+    if pdf_document:
             
         #When start talking button is clicked
         if st.button('Start Talking !'):
             
-            #st.write('CLICKED')
-            #st.subheader(chunks_size)
+            with st.spinner("Processing pdf..."):
+                handle_pdf(pdf_document)
 
-            if 'OPENAI_API_KEY' not in os.environ:
-                st.write('Please Provide OpenAPI Key !')
-                st.stop()
-            else:            
-                api_key = os.environ['OPENAI_API_KEY']
-                if api_key is None or api_key.strip() == "":
-                    st.write('Please Provide OpenAPI Key')
-                    st.stop()
-                else:
-
-                    #API Key recieved - process further
-
-                    chunks_size[0] = int(chunks_size[0])
-                    chunks_size[1] = int(chunks_size[1])
+        st.stop()
 
 
-                    pdf_reader = PdfReader(pdf)
-                    text=""
-                    for page in pdf_reader.pages:
-                        text+=page.extract_text()
-                    #st.write(text)
-
-                    #Split the text into chunks
-                    text_splitter = RecursiveCharacterTextSplitter(
-                        chunk_size=chunks_size[0],
-                        chunk_overlap=chunks_size[1],
-                        length_function=len
-
-                    )
-                    chunks = text_splitter.split_text(text=text)
-                    #st.write(len(chunks))
-                    #st.write(chunks)
-                    
-
-                    store_name = pdf.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
-                    #st.subheader(store_name)
-
-                    #If existing, load embedding from disk, otherwise create
-                    if os.path.exists(f"embeddings/{store_name}"):
-                        #with open(f"embeddings/{store_name}.pkl", "rb") as f:
-                            #VectorStore = pickle.load(f)
-
-                        x = FAISS.load_local(f"embeddings/{store_name}", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
-                        VectorStore = x.as_retriever()
-
-                        # saving the vector store in the streamlit session state (to be persistent between reruns)
-                        st.session_state.vs = VectorStore
-                        st.success('Embeddings Loaded from the Disk')
-                    else:
-                        embeddings = OpenAIEmbeddings()
-                        VectorStore = FAISS.from_texts(chunks, embeddings)
-                        #with open(f"embeddings/{store_name}.pkl", "wb") as f:
-                        #    pickle.dump(VectorStore, f)
-                        
-                        VectorStore.save_local(f"embeddings/{store_name}")
-                        
-                        # saving the vector store in the streamlit session state (to be persistent between reruns)
-                        st.session_state.vs = VectorStore.as_retriever()
-                        st.success('Uploaded, chunked and embedded successfully.')
-
-    if pdf and 'vs' in st.session_state:
+    if pdf_document and 'vs' in st.session_state:
 
         if 'history' not in st.session_state:
             st.session_state['history'] = []
