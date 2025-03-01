@@ -84,6 +84,19 @@ def create_text_chunks_from_pdf(pdf_bytes):
 
         return text_splitter.split_text(text=text)
 
+
+def create_vector_store(store_name, chunks):
+
+        #If existing, load embedding from disk, otherwise create
+        if os.path.exists(f"embeddings/{store_name}"):
+
+            return FAISS.load_local(f"embeddings/{store_name}", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+
+        else:
+            vector_store = FAISS.from_texts(chunks, OpenAIEmbeddings())
+            vector_store.save_local(f"embeddings/{store_name}")
+            return vector_store
+            
         
 
 def handle_pdf(pdf_bytes):
@@ -104,33 +117,14 @@ def handle_pdf(pdf_bytes):
         st.write(len(chunks))
         st.write(chunks)
         
+        store_name = pdf_bytes.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
+        vector_store = create_vector_store(store_name, chunks)
+        #.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": .5, "k": top_k})
         
+        # saving the vector store in the streamlit session state (to be persistent between reruns)
+        st.session_state.vs = vector_store.as_retriever()
+        st.success('Vector Store Loaded !')
 
-        store_name = pdf.name+'-'+str(chunks_size[0])+'-'+str(chunks_size[1])
-        #st.subheader(store_name)
-
-        #If existing, load embedding from disk, otherwise create
-        if os.path.exists(f"embeddings/{store_name}"):
-            #with open(f"embeddings/{store_name}.pkl", "rb") as f:
-                #VectorStore = pickle.load(f)
-
-            x = FAISS.load_local(f"embeddings/{store_name}", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
-            VectorStore = x.as_retriever()
-
-            # saving the vector store in the streamlit session state (to be persistent between reruns)
-            st.session_state.vs = VectorStore
-            st.success('Embeddings Loaded from the Disk')
-        else:
-            embeddings = OpenAIEmbeddings()
-            VectorStore = FAISS.from_texts(chunks, embeddings)
-            #with open(f"embeddings/{store_name}.pkl", "wb") as f:
-            #    pickle.dump(VectorStore, f)
-            
-            VectorStore.save_local(f"embeddings/{store_name}")
-            
-            # saving the vector store in the streamlit session state (to be persistent between reruns)
-            st.session_state.vs = VectorStore.as_retriever()
-            st.success('Uploaded, chunked and embedded successfully.')
 
 
 
