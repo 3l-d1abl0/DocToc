@@ -15,7 +15,7 @@ from langchain.chains import ConversationalRetrievalChain
 
 import openai
 import base64
-
+import time
 
 load_dotenv()
 
@@ -169,7 +169,12 @@ def fetch_response():
     st.session_state.user_input = ''
 
     audio_file = text_to_speech(answer)
-    play_audio(audio_file)
+    with audio_container:
+        st.audio(audio_file, format="audio/mpeg", autoplay=True)
+    #play_audio(audio_file)
+    print("REMOVING AUDIO !!!!!!!!!!!!!!!!!!!!")
+    #time.sleep(5)
+    #os.remove(audio_file)
 
 
 
@@ -194,15 +199,16 @@ def text_to_speech(input_text):
     
     # Write the audio data to the file
     with open(audio_file_path, "wb") as audio_file:
-        response.stream_to_file(audio_file_path)
+        response.write_to_file(audio_file_path)
         #audio_file.write(response['data'])  # Save the audio content from the API response
-    
+    print("RETURNGIN !!!!!!!!!!!!!!!!!!!!!!!!", audio_file_path)
     return audio_file_path
 
 def play_audio(file_path: str):
     with open(file_path, "rb") as f:
         data = f.read()
     b64 = base64.b64encode(data).decode("utf-8")
+    print("PLAYING AUDIO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", file_path)
     md = f"""
     <audio autoplay>
     <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
@@ -234,6 +240,8 @@ if __name__ == "__main__":
     #st.stop()
     #Setup a Container
     chat_container = st.container()
+
+    audio_container = st.container()
 
     #PDF is added and vector store is ready
     if pdf_document and 'vector_store' in st.session_state:
