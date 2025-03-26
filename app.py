@@ -13,6 +13,10 @@ from langchain.callbacks import get_openai_callback
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import ConversationalRetrievalChain
 
+import openai
+import base64
+
+
 load_dotenv()
 
 chunks_size = [0, 0]
@@ -163,6 +167,49 @@ def fetch_response():
     answer = ask_llm(query)
     st.session_state['history'].append({"role": "assistant", "content": answer})
     st.session_state.user_input = ''
+
+    audio_file = text_to_speech(answer)
+    play_audio(audio_file)
+
+
+
+def text_to_speech(input_text):
+    # Initialize OpenAI client with the API key
+    openai.api_key = os.environ['OPENAI_API_KEY']
+
+    # Request to generate speech from text
+    # "gpt-4o-mini-tts",
+    # tts-1
+    # tts-1-hd
+    # whisper-1
+    response = openai.audio.speech.create(
+        model="tts-1",  
+        input=input_text,
+        voice="nova",       # You can specify the voice as needed
+    )
+    
+    print('RESPONSE: ', response)
+    # Define the file path for saving the audio
+    audio_file_path = "temp_audio_play.mp3"
+    
+    # Write the audio data to the file
+    with open(audio_file_path, "wb") as audio_file:
+        response.stream_to_file(audio_file_path)
+        #audio_file.write(response['data'])  # Save the audio content from the API response
+    
+    return audio_file_path
+
+def play_audio(file_path: str):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    b64 = base64.b64encode(data).decode("utf-8")
+    md = f"""
+    <audio autoplay>
+    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+    </audio>
+    """
+    st.markdown(md, unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
 
